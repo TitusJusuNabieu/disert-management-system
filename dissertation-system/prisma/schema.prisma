@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  SUPERVISOR
+  ADMIN
+}
+
+enum TopicStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MilestoneStatus {
+  PENDING
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          Role      @default(STUDENT)
+  studentId     String?
+  department    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  project              Project?         @relation("StudentProject")
+  supervisedProjects   Project[]        @relation("SupervisorProjects")
+  submittedTopics      Topic[]          @relation("StudentTopics")
+  reviewedTopics       Topic[]          @relation("TopicReviewer")
+  feedbackGiven        Feedback[]       @relation("FeedbackAuthor")
+  feedbackReceived     Feedback[]       @relation("FeedbackRecipient")
+  sessions             Session[]
+  accounts             Account[]
+
+  @@map("users")
+}
+
+model Topic {
+  id           String      @id @default(cuid())
+  title        String
+  description  String?
+  rationale    String?
+  status       TopicStatus @default(PENDING)
+  reviewNote   String?
+  reviewedAt   DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  student      User        @relation("StudentTopics", fields: [studentId], references: [id])
+  studentId    String
+
+  reviewedBy   User?       @relation("TopicReviewer", fields: [reviewedById], references: [id])
+  reviewedById String?
+
+  project      Project?
+
+  @@map("topics")
+}
+
+model Project {
+  id           String   @id @default(cuid())
+  title        String
+  abstract     String?
+  department   String
+  academicYear String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  student      User     @relation("StudentProject", fields: [studentId], references: [id])
+  studentId    String   @unique
+
+  supervisor   User?    @relation("SupervisorProjects", fields: [supervisorId], references: [id])
+  supervisorId String?
+
+  topic        Topic?   @relation(fields: [topicId], references: [id])
+  topicId      String?  @unique
+
+  milestones   Milestone[]
+  documents    Document[]
+
+  @@map("projects")
+}
+
+model Milestone {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  dueDate     DateTime?
+  submittedAt DateTime?
+  status      MilestoneStatus @default(PENDING)
+  order       Int
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId   String
+
+  feedback    Feedback[]
+  documents   Document[]
+
+  @@map("milestones")
+}
+
+model Feedback {
+  id          String   @id @default(cuid())
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  author      User     @relation("FeedbackAuthor", fields: [authorId], references: [id])
+  authorId    String
+
+  recipient   User     @relation("FeedbackRecipient", fields: [recipientId], references: [id])
+  recipientId String
+
+  milestone   Milestone? @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  milestoneId String?
+
+  @@map("feedback")
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  size        Int
+  mimeType    String
+  createdAt   DateTime @default(now())
+
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId   String?
+
+  milestone   Milestone? @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  milestoneId String?
+
+  @@map("documents")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
